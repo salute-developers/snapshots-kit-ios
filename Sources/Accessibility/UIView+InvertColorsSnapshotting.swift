@@ -1,0 +1,73 @@
+import CoreGraphics
+import CoreImage
+import UIKit
+
+extension UIView {
+    private var hasSubviewInHierarchyThatIgnoresInvertColors: Bool {
+        if accessibilityIgnoresInvertColors {
+            return true
+        }
+
+        return subviews.contains { $0.hasSubviewInHierarchyThatIgnoresInvertColors }
+    }
+
+    func drawHierarchyWithInvertedColors(in rect: CGRect, using context: UIGraphicsImageRendererContext) {
+        if accessibilityIgnoresInvertColors {
+            drawHierarchy(in: rect, afterScreenUpdates: true)
+
+        } else {
+            let subviewsToDrawSeparately = subviews.filter { subview in
+                !subview.isHidden && subview.hasSubviewInHierarchyThatIgnoresInvertColors
+            }
+            subviewsToDrawSeparately.forEach { $0.isHidden = true }
+
+            let renderer = UIGraphicsImageRenderer(bounds: bounds)
+            let image = renderer.image { _ in
+                drawHierarchy(in: bounds, afterScreenUpdates: true)
+            }
+
+            let filter = CIFilter(name: "CIColorInvert")!
+            filter.setValue(image.ciImage ?? CIImage(cgImage: image.cgImage!), forKey: kCIInputImageKey)
+            let ciContext = CIContext(cgContext: context.cgContext, options: nil)
+            let invertedCIImage = filter.outputImage!
+            let invertedCGImage = ciContext.createCGImage(invertedCIImage, from: invertedCIImage.extent)!
+
+            context.cgContext.draw(invertedCGImage, in: rect)
+
+            subviewsToDrawSeparately.forEach { $0.isHidden = false }
+
+            // Sort the visible subviews by their ordering in the draw stack. For the most part, the
+            // position of views is determined by the ordering of `subviews`, with the exception of those
+            // for which their layer's `zPosition` has been changed. Since `Sequence.sorted(by:)` doesn't
+            // guarantee a stable sort, this sorts an enumerated copy of the sequence so it has stable
+            // indices.
+            let orderedSubviewsToDraw = subviewsToDrawSeparately
+                .enumerated()
+                .sorted { enumeratedSubview1, enumeratedSubview2 in
+                    let (index1, subview1) = enumeratedSubview1
+                    let (index2, subview2) = enumeratedSubview2
+
+                    if subview1.layer.zPosition < subview2.layer.zPosition {
+                        return true
+                    } else if subview1.layer.zPosition > subview2.layer.zPosition {
+                        return false
+                    } else {
+                        return index1 < index2
+                    }
+                }
+                .map(\.1)
+
+            for subview in orderedSubviewsToDraw {
+                subview.drawHierarchyWithInvertedColors(
+                    in: .init(
+                        x: rect.origin.x + subview.frame.origin.x,
+                        y: rect.origin.y + subview.frame.origin.y,
+                        width: subview.frame.width,
+                        height: subview.frame.height
+                    ),
+                    using: context
+                )
+            }
+        }
+    }
+}

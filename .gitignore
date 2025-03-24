@@ -1,0 +1,30 @@
+# macOS
+
+## Вспомогательные системные файлы
+.DS_Store
+.AppleDouble
+.LSOverride
+
+## Файлы кеша предпросмотра
+._*
+
+## Файлы, которые могут отображаться в корневом томе
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+## Каталоги, которые могли быть созданы на удаленном AFP-ресурсе
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Xcode
+xcuserdata
+.build
+.swiftpm
