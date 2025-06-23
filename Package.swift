@@ -15,7 +15,7 @@ let package = Package(
             name: "SDSnapshots",
             path: "Sources",
             resources: [
-                .copy("../Resources"),
+                .process("Resources"),
             ]
         ),
     ]
