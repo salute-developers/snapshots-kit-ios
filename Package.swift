@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "SDSnapshots",
+    defaultLocalization: "en",
     platforms: [
         .iOS(.v14),
     ],
