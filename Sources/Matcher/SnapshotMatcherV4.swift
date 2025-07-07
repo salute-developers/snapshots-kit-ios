@@ -1,7 +1,7 @@
 import UIKit
 import XCTest
 
-struct SnapshotMatcherV4: Sendable {
+struct SnapshotMatcherV4 {
     private static let bytesPerPixel = 4 // RGBA
     private static let maxColorComponentDelta = 15
     private static let colorsSliceSize = 16_000 // pixels * 4 (RGBA)
@@ -10,35 +10,32 @@ struct SnapshotMatcherV4: Sendable {
     private let mode: SnapshotMode
     private let snapshot: UIImage
     private let screen: SnapshotDevice
-    private let useSmallerBitmap: Bool
 
     init(
         snapshot: UIImage,
         files: SnapshotFiles,
         mode: SnapshotMode,
-        screen: SnapshotDevice,
-        useSmallerBitmap: Bool
+        screen: SnapshotDevice
     ) throws {
         self.snapshot = try files.formatSnapshot(snapshot)
         self.files = files
         self.mode = mode
         self.screen = screen
-        self.useSmallerBitmap = useSmallerBitmap
     }
 
-    func run() throws {
+    func run() async throws {
         switch mode {
         case let .record(onlyChanged, removeDiff):
-            return try record(onlyChanged: onlyChanged, removeDiff: removeDiff)
+            return try await record(onlyChanged: onlyChanged, removeDiff: removeDiff)
         case .verify:
-            return try verify()
+            return try await verify()
         }
     }
 
-    private func record(onlyChanged: Bool, removeDiff: Bool) throws {
+    private func record(onlyChanged: Bool, removeDiff: Bool) async throws {
         if onlyChanged {
             do {
-                try verify()
+                try await verify()
             } catch {
                 try files.recordReference(snapshot)
             }
@@ -51,13 +48,13 @@ struct SnapshotMatcherV4: Sendable {
         }
     }
 
-    private func verify() throws {
+    private func verify() async throws {
         let referenceData = try Data(contentsOf: files.reference)
         guard let reference = UIImage(data: referenceData, scale: screen.scale) else {
             throw SnapshotError.couldNotBeCreatedWithData
         }
 
-        let (isEqual, pixelRatio) = try compare(snapshot, reference)
+        let (isEqual, pixelRatio) = try await compare(snapshot, reference)
 
         if isEqual {
             /// Подчищаем от прошлого прогона, если остались
@@ -71,7 +68,7 @@ struct SnapshotMatcherV4: Sendable {
         }
     }
 
-    private func compare(_ snapshot: UIImage, _ reference: UIImage) throws -> (isEqual: Bool, pixelRatio: Double) {
+    private func compare(_ snapshot: UIImage, _ reference: UIImage) async throws -> (isEqual: Bool, pixelRatio: Double) {
         guard snapshot.size == reference.size,
               let snapshotCGImage = snapshot.cgImage,
               let referenceCGImage = reference.cgImage
@@ -86,21 +83,9 @@ struct SnapshotMatcherV4: Sendable {
             throw SnapshotError.unexpectedColorComponentsCount
         }
 
-        // Рассчитываем bitmap в размерах UIImage.size (points) или в реальном размере (pixels)?
-        // Реальный размер == pointsSize * scale
-        let bitmapSize = useSmallerBitmap ? snapshot.size : snapshotCGImage.size
-
-        let result = UnsafeSendableResult<(Bool, Double)>()
-        result.group.enter()
-        Task {
-            defer { result.group.leave() }
-            await result.catching {
-                try await concurrentCompare(snapshotCGImage, referenceCGImage, bitmapSize)
-            }
-        }
-        result.group.wait()
-
-        return try result.subject.get()
+        // Рассчитываем bitmap в размерах UIImage.size (points).
+        // Реальный размер (pixels): snapshotCGImage.size == pointsSize * scale
+        return try await concurrentCompare(snapshotCGImage, referenceCGImage, snapshot.size)
     }
 
     private func concurrentCompare(

@@ -5,10 +5,8 @@ public enum SnapshotMatcherKind: Sendable {
     /// Алгоритм "в лоб", сравниваем цвета всех пикселей
     /// - рисуем битмап в размере pointsSize (БЕЗ учета scale)
     /// - считаем delta RGBA компонент
-    /// - считаем число поехавших по цвету __пикселей__ к общему числу пикселей (pointsSize)
-    case pointColorDiff
-
-    /// Вариация `pointColorDiff` (async в имплементации, но sync интерфейс)
+    /// - считаем число поехавших по цвету __точек__ к их общему числу (pointsSize)
+    /// - для быстроты, параллелим сравнение по Task
     case pointColorDiffConcurrent
 
     /// Используемый во всех продуктовых тестах алгоритм
@@ -21,23 +19,14 @@ extension SnapshotMatcherKind {
         files: SnapshotFiles,
         mode: SnapshotMode,
         screen: SnapshotDevice
-    ) throws {
+    ) async throws {
         switch self {
-        case .pointColorDiff:
-            try SnapshotMatcherV2(
-                snapshot: snapshot,
-                files: files,
-                mode: mode,
-                screen: screen,
-                useSmallerBitmap: true
-            ).run()
         case .pointColorDiffConcurrent:
-            try SnapshotMatcherV4(
+            try await SnapshotMatcherV4(
                 snapshot: snapshot,
                 files: files,
                 mode: mode,
-                screen: screen,
-                useSmallerBitmap: true
+                screen: screen
             ).run()
         }
     }

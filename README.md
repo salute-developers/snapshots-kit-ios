@@ -35,7 +35,6 @@
 - `Snapshot Testing` target should have iOS app specified as the `TEST_HOST`, otherwise `UIKit` render pipe won't work
 - Therefore you need to pack test target code in `.xcodeproj`. Swift Packages currently do not allow us to declare iOS app targets
 - `View` instance have to be uniq per each `prepareSut()` invocation inside assert method. Sequential View re-appearance may affect layout
-- `SnapshotFiles` fails to locate files if project directory path contains spaces
 
 ## Usage
 

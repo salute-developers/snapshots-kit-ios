@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-public enum SnapshotError: Error {
+public enum SnapshotError: Error, Equatable {
     case failedToMakeSnapshot
     case failedToMakeDiffImage(referencePath: String)
     case emptyPNGRepresentation
@@ -12,6 +12,7 @@ public enum SnapshotError: Error {
     case comparingFailed(diffFilePath: String, pixelRaio: Double)
     case differentComparingImages
     case unexpectedColorComponentsCount
+    case sutHasBeenReused
 }
 
 extension SnapshotError: LocalizedError {
@@ -29,6 +30,7 @@ extension SnapshotError: LocalizedError {
         case comparingFailed
         case differentComparingImages
         case unexpectedColorComponentsCount
+        case sutHasBeenReused
     }
 
     public var kind: Kind {
@@ -43,6 +45,7 @@ extension SnapshotError: LocalizedError {
         case .recordModeEnabled: return .recordModeEnabled
         case .differentComparingImages: return .differentComparingImages
         case .unexpectedColorComponentsCount: return .unexpectedColorComponentsCount
+        case .sutHasBeenReused: return .sutHasBeenReused
         }
     }
 
@@ -68,6 +71,8 @@ extension SnapshotError: LocalizedError {
             return "Different comparing images"
         case .unexpectedColorComponentsCount:
             return "Expected 4 color components per pixel (RGBA) but received other"
+        case .sutHasBeenReused:
+            return "SnapshotSut must be uniq per each 'prepareSut' closure call!"
         }
     }
 }

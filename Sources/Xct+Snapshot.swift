@@ -5,6 +5,43 @@ import XCTest
 // MARK: - Xct
 
 extension Xct {
+    /// Expected Simulator Device model and iOS version for test run.
+    ///
+    /// - Note: Consider setting filling in this value before all test cases execution
+    nonisolated(unsafe) public static var expectedSnapshotSimulatorDevice: SnapshotSimulator?
+
+    /// Проверка запуска теста на ожидаемой модели и версии ОС симулятора для актуальной версии монорепо.
+    private static func assertEnvironmentValid(
+        file: StaticString,
+        line: UInt
+    ) -> Bool {
+        guard let expected = Xct.expectedSnapshotSimulatorDevice else {
+            return true
+        }
+        
+        let process = ProcessInfo.processInfo
+
+        let device = process.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? "unknown"
+        let iosVersion = process.operatingSystemVersion
+
+        if device != expected.deviceVersion || iosVersion != expected.osVersion {
+            let message = """
+            ❌📱 Wrong iOS simulator!
+
+            Your ENV: \(device) on \(iosVersion)
+            Valid ENV: \(expected.deviceVersion) on \(expected.osVersion)
+
+            To create valid simulator use: `x add_ios_simulator_for_tests`.
+
+            Snapshot references are recorded with particular simulator version. Other devices break tests.
+            """
+            Xct.fail(message, file: file, line: line)
+            return false
+        }
+
+        return true
+    }
+
     /// Ассерт на визуальное соответствие снимка (snapshot) тестируемого UIView (sut)
     /// ожидаемому изображению (reference)
     ///
@@ -20,18 +57,24 @@ extension Xct {
         includeAccessibility: Bool = false,
         prepareSut: @MainActor @escaping (SnapshotDevice) throws -> SnapshotSut
     ) async {
+        guard assertEnvironmentValid(file: file, line: line) else { return }
+
         var snapshotKinds: [SnapshotKind] = [.interface]
         if includeAccessibility {
             snapshotKinds.append(.accessibility)
         }
+
         var errors = await withTaskGroup(of: Error?.self, returning: [Error].self) { group in
+            let sutChecker = SnapshotSutChecker()
             for screen in deviceGroup.devices {
                 for snapshotKind in snapshotKinds {
                     group.addTask {
                         do {
                             let snapshot = try await Task { @MainActor in
-                                try SnapshotCanvas(
-                                    sut: prepareSut(screen),
+                                let sut = try prepareSut(screen)
+                                try sutChecker.check(sut)
+                                return try SnapshotCanvas(
+                                    sut: sut,
                                     screen: screen,
                                     snapshotKind: snapshotKind
                                 )
@@ -45,7 +88,7 @@ extension Xct {
                                 testFile: file,
                                 isComparisonFilesUseful: true
                             )
-                            try matcher.run(
+                            try await matcher.run(
                                 snapshot: snapshot,
                                 files: files,
                                 mode: mode,
@@ -93,18 +136,23 @@ extension Xct {
         prepareReference: @MainActor @escaping (SnapshotDevice) throws -> SnapshotSut,
         prepareSut: @MainActor @escaping (SnapshotDevice) throws -> SnapshotSut
     ) async {
+        guard assertEnvironmentValid(file: file, line: line) else { return }
+        let sutChecker = SnapshotSutChecker()
+
         var errors = await withTaskGroup(of: (Int, Error?).self, returning: [Error?].self) { group in
             for index in deviceGroup.devices.indices {
                 let screen = deviceGroup.devices[index]
                 group.addTask {
                     do {
                         let snapshot = try await Task { @MainActor in
-                            try SnapshotCanvas(
-                                sut: mode.prepareSnapshotView(
-                                    device: screen,
-                                    prepareReference: prepareReference,
-                                    prepareSut: prepareSut
-                                ),
+                            let sut = try mode.prepareSnapshotView(
+                                device: screen,
+                                prepareReference: prepareReference,
+                                prepareSut: prepareSut
+                            )
+                            try sutChecker.check(sut)
+                            return try SnapshotCanvas(
+                                sut: sut,
                                 screen: screen
                             )
                             .capture()
@@ -117,7 +165,7 @@ extension Xct {
                             testFile: file,
                             isComparisonFilesUseful: false
                         )
-                        try matcher.run(
+                        try await matcher.run(
                             snapshot: snapshot,
                             files: files,
                             mode: mode,
@@ -130,7 +178,7 @@ extension Xct {
                 }
             }
 
-            var result: [Error?] = Array(repeating: nil, count: expected.count)
+            var result: [Error?] = Array(repeating: nil, count: deviceGroup.devices.count)
             while let next = await group.next() {
                 result[next.0] = next.1
             }
@@ -145,6 +193,9 @@ extension Xct {
                 XCTFail(error.localizedErrorDescription, file: file, line: line)
             }
         case .verify:
+            if sutChecker.isFailed {
+                errors = [SnapshotError.sutHasBeenReused]
+            }
             Xct.assertEqual(
                 errors.map { ($0 as? SnapshotError)?.kind.rawValue ?? $0?.localizedErrorDescription },
                 expected.map { $0?.rawValue },
@@ -200,5 +251,13 @@ extension SnapshotMode {
         case .verify:
             try prepareSut(device)
         }
+    }
+}
+
+extension OperatingSystemVersion: @retroactive Equatable {
+    public static func == (lhs: OperatingSystemVersion, rhs: OperatingSystemVersion) -> Bool {
+        lhs.majorVersion == rhs.majorVersion &&
+            lhs.minorVersion == rhs.minorVersion &&
+            lhs.patchVersion == rhs.patchVersion
     }
 }

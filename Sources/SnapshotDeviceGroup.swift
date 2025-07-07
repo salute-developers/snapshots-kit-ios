@@ -12,7 +12,7 @@ public struct SnapshotDeviceGroup: Sendable {
     /// - Important: false отключает эффект модификаторов смены ориентации
     public let rotatable: Bool
 
-    init(
+    public init(
         rotatable: Bool,
         _ devices: [SnapshotDevice]
     ) {
@@ -20,7 +20,7 @@ public struct SnapshotDeviceGroup: Sendable {
         self.devices = devices
     }
 
-    init(
+    public init(
         rotatable: Bool,
         _ devices: SnapshotDevice...
     ) {
@@ -106,22 +106,8 @@ extension SnapshotDeviceGroup {
     /// __Портретные__ iPhone
     public static let phone = SnapshotDeviceGroup(
         rotatable: true,
-        SnapshotDevice( // iPhone SE (3rd generation)
-            portraitWidth: 375,
-            portraitHeight: 667,
-            scale: 2,
-            portraitSafeArea: UIEdgeInsets(top: 20),
-            landscapeSafeArea: .zero,
-            orientation: .portrait
-        ),
-        SnapshotDevice( // iPhone 13 mini
-            portraitWidth: 375,
-            portraitHeight: 812,
-            scale: 3,
-            portraitSafeArea: UIEdgeInsets(top: 50, bottom: 34),
-            landscapeSafeArea: UIEdgeInsets(top: 0, left: 50, bottom: 21, right: 50),
-            orientation: .portrait
-        )
+        .iPhoneSE,
+        .iPhone13mini
     )
 
     /// __Портретные__ iPad
@@ -182,6 +168,26 @@ extension SnapshotDeviceGroup {
             landscapeSafeArea: .iPadMini6SafeArea,
             orientation: .landscape
         )
+    )
+}
+
+extension SnapshotDevice {
+    public static let iPhoneSE = SnapshotDevice( // (3rd generation)
+        portraitWidth: 375,
+        portraitHeight: 667,
+        scale: 2,
+        portraitSafeArea: UIEdgeInsets(top: 20),
+        landscapeSafeArea: .zero,
+        orientation: .portrait
+    )
+
+    public static let iPhone13mini = SnapshotDevice(
+        portraitWidth: 375,
+        portraitHeight: 812,
+        scale: 3,
+        portraitSafeArea: UIEdgeInsets(top: 50, bottom: 34),
+        landscapeSafeArea: UIEdgeInsets(top: 0, left: 50, bottom: 21, right: 50),
+        orientation: .portrait
     )
 }
 
